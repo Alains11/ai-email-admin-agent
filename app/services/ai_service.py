@@ -5,10 +5,16 @@ from langchain.agents import AgentExecutor, create_openai_functions_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.tools import tool
 from app.integrations.email.base import EmailProvider, EmailMessage
+from app.integrations.calendar.base import CalendarProvider, CalendarEvent
+from app.services.memory_service import MemoryService
+from datetime import datetime
 
 class AIService:
-    def __init__(self, email_provider: EmailProvider):
+    def __init__(self, email_provider: EmailProvider, calendar_provider: CalendarProvider = None, session_id: str = "default"):
         self.email_provider = email_provider
+        self.calendar_provider = calendar_provider
+        self.memory = MemoryService()
+        self.session_id = session_id
         self.llm = ChatOpenAI(model="gpt-4o", temperature=0)
         self.agent_executor = self._setup_agent()
 
@@ -18,7 +24,9 @@ class AIService:
             self.tool_fetch_emails,
             self.tool_send_email,
             self.tool_draft_reply,
-            self.tool_update_label
+            self.tool_update_label,
+            self.tool_create_calendar_event,
+            self.tool_list_calendar_events
         ]
 
         prompt = ChatPromptTemplate.from_messages([
@@ -66,12 +74,58 @@ class AIService:
         await self.email_provider.update_label(email_id, label)
         return f"Email {email_id} labeled as {label}"
 
+    @tool
+    async def tool_create_calendar_event(self, summary: str, start_time: str, end_time: str, description: str = None) -> str:
+        """Schedules an appointment in the calendar. Times should be in ISO format."""
+        if not self.calendar_provider:
+            return "Calendar provider not configured."
+        
+        try:
+            event = CalendarEvent(
+                summary=summary,
+                description=description,
+                start_time=datetime.fromisoformat(start_time),
+                end_time=datetime.fromisoformat(end_time)
+            )
+            event_id = await self.calendar_provider.create_event(event)
+            return f"Appointment scheduled successfully with ID: {event_id}"
+        except Exception as e:
+            return f"Failed to schedule appointment: {str(e)}"
+
+    @tool
+    async def tool_list_calendar_events(self, start_time: str, end_time: str) -> str:
+        """Lists appointments in the calendar for a given time range. Times in ISO format."""
+        if not self.calendar_provider:
+            return "Calendar provider not configured."
+        
+        try:
+            events = await self.calendar_provider.list_events(
+                start_time=datetime.fromisoformat(start_time),
+                end_time=datetime.fromisoformat(end_time)
+            )
+            if not events:
+                return "No events found for this period."
+            
+            event_list = "\n".join([f"- {e.summary} ({e.start_time} to {e.end_time})" for e in events])
+            return f"Upcoming events:\n{event_list}"
+        except Exception as e:
+            return f"Failed to list events: {str(e)}"
+
     async def process_request(self, user_input: str, chat_history: List = []) -> str:
         """Main entry point for the AI to handle user requests."""
+        # Load history from memory
+        stored_history = self.memory.get_history(self.session_id)
+        combined_history = stored_history + chat_history
+        
         result = await self.agent_executor.ainvoke({
             "input": user_input,
-            "chat_history": chat_history
+            "chat_history": combined_history
         })
+        
+        # Save interaction to memory
+        self.memory.save_message(self.session_id, "human", user_input)
+        self.memory.save_message(self.session_id, "ai", result["output"])
+        
         return result["output"]
 
     async def summarize_thread(self, email_id: str) -> str:
