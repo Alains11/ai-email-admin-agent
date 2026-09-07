@@ -1,11 +1,13 @@
 fastapi
 uvicorn
 langchain
-langchain-openai
-pydantic-settings
+langchain-ollama
+langgraph
 google-api-python-client
 google-auth-oauthlib
 google-auth-httplib2
 msal
 requests
 python-dotenv
+pytest
+pytest-asyncio

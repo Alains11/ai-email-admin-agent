@@ -5,4 +5,5 @@ __pycache__/
 .ipynb_checkpoints/
 agent_memory.db
 credentials.json
+token.json
 .DS_Store

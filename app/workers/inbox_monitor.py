@@ -1,7 +1,9 @@
+"""Optional background inbox monitor."""
+
 import asyncio
 import logging
-from datetime import datetime, timedelta
-from app.services.ai_service import AIService
+from datetime import datetime
+from app.services.email_agent import AIService
 from app.integrations.email.base import EmailProvider
 
 logging.basicConfig(level=logging.INFO)
@@ -12,6 +14,7 @@ class ProactiveEmailWorker:
         self.email_provider = email_provider
         self.ai_service = ai_service
         self.is_running = False
+        self.processed_email_ids: set[str] = set()
 
     async def monitor_inbox(self, interval_seconds: int = 300):
         """
@@ -30,7 +33,10 @@ class ProactiveEmailWorker:
                     logger.info("No new emails to process.")
                 else:
                     for email in emails:
+                        if email.id in self.processed_email_ids:
+                            continue
                         await self._process_email_proactively(email)
+                        self.processed_email_ids.add(email.id)
                 
             except Exception as e:
                 logger.error(f"Error in proactive monitor: {str(e)}")

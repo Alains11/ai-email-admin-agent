@@ -1,7 +1,8 @@
+"""Tests for the email agent service."""
+
 import pytest
-import asyncio
 from unittest.mock import AsyncMock, MagicMock
-from app.services.ai_service import AIService
+from app.services.email_agent import AIService
 from app.integrations.email.base import EmailProvider, EmailMessage
 
 @pytest.fixture

@@ -1,7 +1,7 @@
+"""SQLite-backed conversation memory."""
+
 import sqlite3
-import json
-from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 class MemoryService:
     def __init__(self, db_path: str = "agent_memory.db"):
@@ -38,7 +38,7 @@ class MemoryService:
     def get_history(self, session_id: str, limit: int = 10) -> List[Dict[str, Any]]:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
-                "SELECT role, content FROM chat_history WHERE session_id = ? ORDER BY timestamp DESC LIMIT ?",
+                "SELECT role, content FROM chat_history WHERE session_id = ? ORDER BY id DESC LIMIT ?",
                 (session_id, limit)
             )
             return [{"role": row[0], "content": row[1]} for row in cursor.fetchall()][::-1]
